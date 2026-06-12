@@ -1,16 +1,35 @@
 # LeanRig
 
+[![npm](https://img.shields.io/npm/v/leanrig)](https://www.npmjs.com/package/leanrig)
+[![license](https://img.shields.io/npm/l/leanrig)](./LICENSE)
+
 **Put your AI coding agent on a budget.**
 
 LeanRig reduces Claude Code token usage and API costs. It audits where your setup wastes tokens, installs safe and reversible cost-saving profiles — cheap model routing, concise output, tool-output caps — and installs the best community token-saving tools (ccusage, caveman, squeez) with one command. Everything backed up, everything rollback-able.
 
 Claude Code first. Harness-agnostic by design.
 
+## Install
+
 ```bash
-leanrig doctor
-leanrig install claude-code --profile balanced
-leanrig diff
-leanrig rollback
+npm install -g leanrig
+```
+
+Or run it without installing:
+
+```bash
+npx leanrig doctor
+```
+
+Requires Node >= 20.
+
+## Quick start
+
+```bash
+leanrig doctor                                  # find where you're wasting tokens (read-only)
+leanrig install claude-code --profile safe      # start conservative; --dry-run to preview
+leanrig diff                                    # see exactly what changed
+leanrig rollback                                # undo everything, byte-exact
 ```
 
 ## Why
