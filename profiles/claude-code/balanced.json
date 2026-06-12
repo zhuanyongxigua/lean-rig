@@ -1,0 +1,20 @@
+{
+  "name": "balanced",
+  "extends": "safe",
+  "description": "Adds worker/reviewer agents, delegation skill, statusline, and output caps. Good daily driver.",
+  "assets": ["agents/worker", "agents/reviewer", "skills/delegate", "statusline"],
+  "vars": {
+    "workerModel": "sonnet",
+    "reviewerModel": "sonnet"
+  },
+  "settings": {
+    "env": {
+      "BASH_MAX_OUTPUT_LENGTH": "20000",
+      "MAX_MCP_OUTPUT_TOKENS": "12000"
+    },
+    "statusLine": {
+      "type": "command",
+      "command": "{{configDir}}/statusline/leanrig-statusline.sh"
+    }
+  }
+}

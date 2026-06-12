@@ -1,0 +1,13 @@
+{
+  "name": "sonnet-main",
+  "extends": "balanced",
+  "description": "Sonnet as the default main model with haiku for exploration and sonnet for implementation/review. Escalate to a premium model only when needed.",
+  "vars": {
+    "explorerModel": "haiku",
+    "workerModel": "sonnet",
+    "reviewerModel": "sonnet"
+  },
+  "settings": {
+    "model": "sonnet"
+  }
+}

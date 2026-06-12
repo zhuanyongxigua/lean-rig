@@ -1,0 +1,11 @@
+{
+  "name": "fable-router",
+  "extends": "balanced",
+  "description": "Premium model stays as the main coordinator; routine work (exploration, implementation, review) routed to cheaper subagents. Does NOT set top-level model — use whatever model you launch with.",
+  "vars": {
+    "explorerModel": "haiku",
+    "workerModel": "sonnet",
+    "reviewerModel": "sonnet"
+  },
+  "settings": {}
+}

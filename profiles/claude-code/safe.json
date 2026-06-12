@@ -1,0 +1,11 @@
+{
+  "name": "safe",
+  "description": "Minimal, reversible defaults: concise output style + cheap explorer subagent.",
+  "assets": ["agents/explorer", "output-styles/token-saver"],
+  "vars": {
+    "explorerModel": "haiku"
+  },
+  "settings": {
+    "outputStyle": "Token Saver"
+  }
+}

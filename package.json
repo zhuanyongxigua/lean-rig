@@ -1,0 +1,37 @@
+{
+  "name": "leanrig",
+  "version": "0.1.0",
+  "description": "Install safe, reversible cost-control profiles into AI coding agent harnesses",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "leanrig": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "profiles",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "dev": "node --loader ts-node/esm src/index.ts",
+    "e2e": "bash scripts/e2e.sh"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "diff": "^7.0.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.2",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
