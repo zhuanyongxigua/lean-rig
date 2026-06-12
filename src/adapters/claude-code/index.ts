@@ -6,6 +6,13 @@ import type { Finding } from "../../core/report.js";
 import type { InstallPlan, PlannedFile, SettingsPatch } from "../../core/installer.js";
 import { deepMerge } from "../../core/jsonMerge.js";
 import { doctorChecks } from "./doctorChecks.js";
+import {
+  toolRegistry,
+  detectTool,
+  planAddTool,
+  planRemoveTool,
+} from "./toolRegistry.js";
+import { realRunner } from "../../core/tools.js";
 
 // ---------------------------------------------------------------------------
 // Asset ID -> { src path relative to assets/claude-code/, target filename }
@@ -206,6 +213,32 @@ export const claudeCodeAdapter: Adapter = {
       .readdirSync(profilesDir)
       .filter((f) => f.endsWith(".json"))
       .map((f) => path.basename(f, ".json"));
+  },
+
+  async listTools() {
+    const results: Array<{ spec: typeof toolRegistry[0]; status: Awaited<ReturnType<typeof detectTool>> }> = [];
+    for (const spec of toolRegistry) {
+      let status;
+      try {
+        status = await detectTool(spec.id, realRunner);
+      } catch {
+        status = { installed: false };
+      }
+      results.push({ spec, status });
+    }
+    return results;
+  },
+
+  async detectTool(id: string) {
+    return detectTool(id, realRunner);
+  },
+
+  async planAddTool(id: string) {
+    return planAddTool(id);
+  },
+
+  async planRemoveTool(id: string) {
+    return planRemoveTool(id);
   },
 
   async planInstall(

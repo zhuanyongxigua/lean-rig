@@ -118,6 +118,31 @@ For cheaper default sessions. Sonnet as the main model, escalate only when neces
 | `leanrig diff` | Show exactly what LeanRig changed |
 | `leanrig rollback` | Restore your previous config |
 | `leanrig profiles` | List available profiles |
+| `leanrig tools` | List third-party cost-saving tools + what's installed |
+| `leanrig add <tool>` | Install a third-party tool through its official channel |
+| `leanrig remove <tool>` | Uninstall it again |
+
+## One toolbox, not another tool
+
+The token-saving ecosystem is fragmented: one tool compresses output, another compresses Bash logs, another tracks spend. LeanRig is the toolbox that installs and manages them — through their official channels, never vendored, always removable.
+
+```
+$ leanrig tools
+
+Tools for claude-code:
+  ccusage-statusline  [not installed]  MIT
+    Shows model, cost, context, and rate-limit info in the terminal statusline.
+  caveman             [not installed]  MIT
+    Makes Claude talk like a caveman — cuts ~75% of output tokens.
+  squeez              [not installed]  Apache-2.0
+    Hook-based Bash output compressor with cross-call dedup — up to 95%.
+  lean-ctx            [not installed]  Apache-2.0
+    Local context-intelligence binary — compressed reads, 60-90% fewer tokens.
+
+$ leanrig add ccusage-statusline
+```
+
+Every `add` shows you the tool's license, source, and the exact changes or commands **before** anything happens. Settings-based tools are reverted key-by-key on `remove` — your own edits stay untouched. LeanRig never runs `curl | bash` on your behalf.
 
 ## Doctor
 

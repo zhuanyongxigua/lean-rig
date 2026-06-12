@@ -3,6 +3,7 @@ import path from "path";
 import os from "os";
 import { leanrigHome } from "../../core/paths.js";
 import type { Finding } from "../../core/report.js";
+import { toolRegistry, cavemanInInstalledPlugins } from "./toolRegistry.js";
 
 /** Signature for a single doctor check function. */
 export type DoctorCheck = (configDir: string) => Promise<Finding[]>;
@@ -353,6 +354,76 @@ const checkLeanrigBackupState: DoctorCheck = async (_configDir: string) => {
 };
 
 // ---------------------------------------------------------------------------
+// Check 10: Third-party tool detection (file-system / settings visible only)
+// ---------------------------------------------------------------------------
+const checkThirdPartyTools: DoctorCheck = async (configDir: string) => {
+  const findings: Finding[] = [];
+  const settings = readSettings(configDir);
+  const settingsPath = path.join(configDir, "settings.json");
+
+  // ccusage-statusline: check statusLine.command contains "ccusage"
+  const statusLine = settings["statusLine"] as Record<string, unknown> | undefined;
+  const statusLineCmd = typeof statusLine?.["command"] === "string" ? statusLine["command"] : "";
+  if (statusLineCmd.includes("ccusage")) {
+    const spec = toolRegistry.find((t) => t.id === "ccusage-statusline")!;
+    findings.push({
+      level: "info",
+      title: `Third-party tool detected: ${spec.title}`,
+      detail: `statusLine.command contains "ccusage". ${spec.overlaps ?? ""}`,
+    });
+  }
+
+  // squeez: binary at <configDir>/squeez/bin/squeez, or settings.json contains "squeez"
+  const squeezBin = path.join(configDir, "squeez", "bin", "squeez");
+  const settingsRaw = fs.existsSync(settingsPath) ? fs.readFileSync(settingsPath, "utf8") : "";
+  const squeezDetected = fs.existsSync(squeezBin) || settingsRaw.includes("squeez");
+  if (squeezDetected) {
+    const spec = toolRegistry.find((t) => t.id === "squeez")!;
+    findings.push({
+      level: "info",
+      title: `Third-party tool detected: ${spec.title}`,
+      detail: [spec.description, spec.overlaps].filter(Boolean).join(" "),
+    });
+
+    // Overlap: squeez detected AND BASH_MAX_OUTPUT_LENGTH set
+    const env = (settings["env"] ?? {}) as Record<string, unknown>;
+    if (env["BASH_MAX_OUTPUT_LENGTH"] !== undefined) {
+      findings.push({
+        level: "info",
+        title: "squeez + BASH_MAX_OUTPUT_LENGTH both active",
+        detail:
+          "Both squeez (output compression) and BASH_MAX_OUTPUT_LENGTH are configured. " +
+          "This is generally fine — both work independently — but worth knowing you have double compression active.",
+      });
+    }
+  }
+
+  // caveman: read-only detection via plugins/installed_plugins.json
+  if (cavemanInInstalledPlugins(configDir)) {
+    const spec = toolRegistry.find((t) => t.id === "caveman")!;
+    findings.push({
+      level: "info",
+      title: `Third-party tool detected: ${spec.title}`,
+      detail: [spec.description, spec.overlaps].filter(Boolean).join(" "),
+    });
+
+    // Overlap: caveman AND an output style both compress output
+    const outputStyle = settings["outputStyle"];
+    if (outputStyle !== undefined && outputStyle !== null && outputStyle !== "") {
+      findings.push({
+        level: "info",
+        title: `caveman + output style "${outputStyle}" both active`,
+        detail:
+          "Both compress Claude's output. They stack, but the docs for each recommend picking one — " +
+          "consider removing caveman or unsetting outputStyle.",
+      });
+    }
+  }
+
+  return findings;
+};
+
+// ---------------------------------------------------------------------------
 // Exported array of all checks
 // ---------------------------------------------------------------------------
 export const doctorChecks: DoctorCheck[] = [
@@ -365,4 +436,5 @@ export const doctorChecks: DoctorCheck[] = [
   checkStatusline,
   checkHooksDisabled,
   checkLeanrigBackupState,
+  checkThirdPartyTools,
 ];

@@ -136,6 +136,78 @@ Read-only; sources: `$CLAUDE_CONFIG_DIR` or `~/.claude`, `~/.claude.json`, proje
 
 Vitest. All fs tests run with `LEANRIG_HOME` and `CLAUDE_CONFIG_DIR` pointed at per-test tmp dirs — **tests must never touch the real `~/.claude` or `~/.leanrig`**. Required coverage: jsonMerge apply semantics; install→rollback byte-exact roundtrip (created files removed, modified files restored); collision policy (skip vs `--force`); user-edit detection via hash; dry-run writes nothing; profile inheritance resolution.
 
-## Roadmap (not v0.1)
+## v0.2 — third-party tools registry (`tools` / `add` / `remove`)
 
-`bench`; more adapters (codex, gemini-cli, opencode); default-on tool-output hooks; third-party tool integration; uninstall-vs-rollback split.
+LeanRig is an **installer/aggregator, never a redistributor**: the repo and npm package contain only our own code plus a metadata registry (name, license, source URL, official install commands). We never vendor third-party code, prompts, or binaries, and never run remote scripts (`curl | bash`).
+
+### Commands
+
+```
+leanrig tools [harness]                 # list registry entries + installed/not-installed detection
+leanrig add <tool> [harness]            # install a tool (--dry-run, --yes, --force)
+leanrig remove <tool> [harness]         # uninstall (--dry-run, --yes, --force)
+```
+
+`add`/`remove` print the tool's license, source, and the exact actions (settings keys or shell commands) **before** doing anything, then require confirmation via a y/N prompt; `--yes` skips the prompt (needed for scripts/tests), `--dry-run` prints the plan and exits.
+
+### ToolSpec (adapter-provided registry; engine stays harness-agnostic)
+
+```ts
+interface ToolSpec {
+  id: string;             // "ccusage-statusline" | "caveman" | "squeez" | "lean-ctx"
+  title: string;
+  description: string;    // what it saves, one line
+  license: string;        // SPDX, from facts doc
+  source: string;         // homepage/repo URL
+  kind: "settings" | "external" | "guide";
+  overlaps?: string;      // human-readable overlap warning shown by add + doctor
+}
+
+interface ToolStatus { installed: boolean; detail?: string }
+
+type ToolPlan = {
+  kind: "settings";       // settings-patch tools
+  settingsPath: string;   // <configDir>/settings.json
+  merge: Record<string, unknown>;
+} | {
+  kind: "external";       // external CLI tools
+  requires?: string;      // binary that must exist (e.g. "claude", "npm")
+  commands: string[][];   // argv arrays, executed in order, NEVER through a shell string
+} | {
+  kind: "guide";          // print instructions only
+  instructions: string;
+};
+```
+
+Adapter gains optional methods: `listTools?()`, `detectTool?(id)`, `planAddTool?(id)`, `planRemoveTool?(id)`. Adapters without them simply have no tools.
+
+### Engine: `core/tools.ts`
+
+- **settings-kind add**: record, for every leaf key path in `merge`, the *previous value* (or "absent") into a tool manifest at `~/.leanrig/tools/<harness>/<toolId>.json`, plus a full backup copy of settings.json; then deep-merge. **remove** = targeted un-merge: restore each recorded key path to its previous value (delete if it was absent). If a current leaf value ≠ what we wrote (user edited), skip + warn, require `--force`. This is deliberately NOT wholesale file restore — profile installs/rollbacks may legitimately change other keys in between (cross-layer safety).
+- **external-kind**: run argv arrays via a `CommandRunner` interface (`run(argv): {code, stdout, stderr}`); the real runner uses `child_process.spawnSync` without `shell: true`. Tests inject a fake runner — **tests must never execute real npm/claude/squeez commands**. On add success, record `{addedAt, kind}` in the tool manifest so `tools` can show "added by leanrig". Mark output clearly: external tools are managed by their own ecosystem and are uninstalled via their own commands, not byte-restored.
+- **guide-kind**: print instructions; no state recorded.
+- State: tool manifests live under `~/.leanrig/tools/` (separate namespace from profile backups; the profile one-active-layer invariant is untouched).
+- Tool ids come only from the adapter registry; unknown id → clean one-line error.
+
+### Registry contents (v0.2; all facts from docs/claude-code-facts.md "Third-party tools" table)
+
+- `ccusage-statusline` (settings) — overlap: replaces any current statusLine, incl. leanrig's.
+- `caveman` (external, requires `claude`) — overlap: stacks with Token Saver output style; pick one.
+- `squeez` (external, requires `npm`) — overlap: composes with `BASH_MAX_OUTPUT_LENGTH`; doctor notes redundancy.
+- `lean-ctx` (guide) — detection + brew/repo pointer only in v0.2.
+
+### Doctor additions
+
+- Detect each registry tool (info-level: "third-party tool X detected").
+- Overlap notes: squeez detected AND `BASH_MAX_OUTPUT_LENGTH` set → info (double compression, generally fine but worth knowing); caveman detected AND `outputStyle` set → info.
+
+### Safety rules (extend the v0.1 invariants)
+
+10. The npm package never contains third-party code, prompt text, or binaries — registry metadata only.
+11. External commands are exact argv arrays from the facts doc, run without a shell; nothing is ever piped from the network into an interpreter.
+12. `add`/`remove` show license + exact actions before acting; no confirmation, no action (except `--yes`).
+13. Settings-kind tool removal restores only the keys the tool wrote, honoring the user-edit rule (skip + warn without `--force`).
+
+## Roadmap (not v0.1/v0.2)
+
+`bench`; more adapters (codex, gemini-cli, opencode); default-on tool-output hooks; lean-ctx auto-install; uninstall-vs-rollback split.

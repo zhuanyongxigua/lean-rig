@@ -63,3 +63,26 @@ Verified 2026-06-11 against code.claude.com/docs. **This file is the only source
 ## Memory / CLAUDE.md
 
 - Loaded into context at session start. Official guidance: **target under 200 lines** per CLAUDE.md (memory page). Doctor warns above 200.
+
+## Plugin CLI (verified 2026-06-12, docs page `discover-plugins` + local `claude plugin --help`)
+
+Non-interactive shell commands (CONFIRMED locally on installed claude CLI):
+
+- `claude plugin marketplace add <source>` — source may be `owner/repo` GitHub shorthand, git URL, local path, or marketplace.json URL.
+- `claude plugin marketplace remove <name>` — **also uninstalls plugins that were installed from that marketplace** (docs warning).
+- `claude plugin marketplace list`
+- `claude plugin install <plugin>@<marketplace>` (alias `i`; `--scope` option exists)
+- `claude plugin uninstall <plugin>` (alias `remove`)
+- `claude plugin list`
+- Plugin changes need `/reload-plugins` or a restart to take effect.
+
+## Third-party tools (verified 2026-06-12; for the tools registry)
+
+| Tool | License | Channel | Install | Uninstall | Detect |
+|---|---|---|---|---|---|
+| ccusage statusline | MIT (npm field) | settings.json patch only | `statusLine: {"type":"command","command":"npx -y ccusage statusline","padding":0}` (ccusage.com/guide/statusline) | revert settings keys | `statusLine.command` contains `ccusage` |
+| caveman | MIT | Claude plugin marketplace (`JuliusBrussee/caveman` has `.claude-plugin/marketplace.json`; marketplace name `caveman`, plugin name `caveman`) | `claude plugin marketplace add JuliusBrussee/caveman` then `claude plugin install caveman@caveman` | `claude plugin uninstall caveman` then `claude plugin marketplace remove caveman` | read-only: `<configDir>/plugins/installed_plugins.json` `plugins` keys contain `caveman@...` (OBSERVED structure, version 2, not documented — best-effort only); fallback: `claude plugin list` output contains `caveman` |
+| squeez | Apache-2.0 (npm v1.23.0) | npm | `npm install -g squeez` then `squeez setup --host=claude-code` | `squeez uninstall --host=claude-code` | binary at `<configDir>/squeez/bin/squeez`, or settings hooks mention squeez |
+| lean-ctx | Apache-2.0 | brew tap / install script — **guide only, no auto-install in v0.2** | point user to github.com/yvgude/lean-ctx (`brew tap yvgude/lean-ctx && brew install lean-ctx`) | n/a | `lean-ctx` binary on PATH |
+
+NEVER run `curl | bash`-style remote scripts on the user's behalf (caveman and lean-ctx READMEs suggest them; we use official package channels instead).
