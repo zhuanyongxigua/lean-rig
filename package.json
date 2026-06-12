@@ -17,11 +17,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zhuanyongxigua/lean-rig.git"
+    "url": "git+https://github.com/zhuanyongxigua/leanrig.git"
   },
-  "homepage": "https://github.com/zhuanyongxigua/lean-rig#readme",
+  "homepage": "https://github.com/zhuanyongxigua/leanrig#readme",
   "bugs": {
-    "url": "https://github.com/zhuanyongxigua/lean-rig/issues"
+    "url": "https://github.com/zhuanyongxigua/leanrig/issues"
   },
   "license": "MIT",
   "type": "module",
