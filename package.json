@@ -40,7 +40,8 @@
     "build": "tsc",
     "test": "vitest run",
     "dev": "node --loader ts-node/esm src/index.ts",
-    "e2e": "bash scripts/e2e.sh"
+    "e2e": "bash scripts/e2e.sh",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
     "commander": "^12.1.0",
