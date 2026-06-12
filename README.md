@@ -2,9 +2,7 @@
 
 **Put your AI coding agent on a budget.**
 
-Your agent should not spend premium-model tokens on grep, logs, boilerplate summaries, failed test spam, and "let me explain what I just did" paragraphs.
-
-LeanRig installs safe, reversible cost-control profiles for AI coding agents.
+LeanRig reduces Claude Code token usage and API costs. It audits where your setup wastes tokens, installs safe and reversible cost-saving profiles — cheap model routing, concise output, tool-output caps — and installs the best community token-saving tools (ccusage, caveman, squeez) with one command. Everything backed up, everything rollback-able.
 
 Claude Code first. Harness-agnostic by design.
 
@@ -17,11 +15,11 @@ leanrig rollback
 
 ## Why
 
-Modern coding agents are powerful.
+You hit your usage limits halfway through the day. Your API bill says the model spent more on reading test logs than writing code. Sound familiar?
 
-They are also extremely good at wasting context.
+Modern coding agents are powerful. They are also extremely good at wasting context.
 
-They read too much. They summarize too much. They keep stale instructions around. They send huge tool outputs back into the conversation. They use premium models for cheap work. They explain obvious things. They forget that every useless token compounds.
+They read too much. They summarize too much. They keep stale instructions around. They send huge tool outputs back into the conversation. They use premium models for cheap work. They explain obvious things. They forget that every useless token compounds — into burned rate limits and a bigger bill.
 
 LeanRig gives your agent a budget.
 
@@ -207,9 +205,23 @@ leanrig doctor <harness>
 - The best token is the one your agent never sends.
 - Every agent needs a spending limit.
 
+## FAQ
+
+**Why is Claude Code using so many tokens?**
+Usually: large CLAUDE.md loaded every session, uncapped Bash/MCP tool output flowing into context, subagents inheriting your premium model, and verbose responses. Run `leanrig doctor` — it points at each one.
+
+**How do I reduce Claude Code costs without making it dumber?**
+Route judgment to the expensive model and labor to cheap ones, cap tool output instead of compressing answers, and keep error messages verbatim. That's exactly what the `safe` and `balanced` profiles do — and they never touch code-writing instructions.
+
+**How do I see what Claude Code is costing me?**
+`leanrig add ccusage-statusline` puts model, context usage, and session cost in your statusline. One command, fully removable.
+
+**Will this break my existing setup?**
+Every file is backed up before it's touched, `leanrig diff` shows every change, and one `leanrig rollback` restores your exact pre-install state.
+
 ## Status
 
-Experimental (v0.1). Built for people who use AI coding agents heavily and are tired of watching them burn context on avoidable noise.
+Experimental (v0.2). Built for people who use AI coding agents heavily and are tired of watching them burn context on avoidable noise.
 
 Use `safe` first. Use `balanced` when you trust it. Use `aggressive` when you know what you are doing.
 

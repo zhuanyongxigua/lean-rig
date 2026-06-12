@@ -1,7 +1,29 @@
 {
   "name": "leanrig",
-  "version": "0.1.0",
-  "description": "Install safe, reversible cost-control profiles into AI coding agent harnesses",
+  "version": "0.2.0",
+  "description": "Reduce Claude Code token usage and API costs: audit waste, install safe reversible cost-saving profiles, and manage token-saving tools like ccusage, caveman, and squeez — with full rollback",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "token-usage",
+    "token-optimization",
+    "cost-optimization",
+    "ai-coding-agent",
+    "ccusage",
+    "rate-limits",
+    "context-window",
+    "anthropic",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhuanyongxigua/lean-rig.git"
+  },
+  "homepage": "https://github.com/zhuanyongxigua/lean-rig#readme",
+  "bugs": {
+    "url": "https://github.com/zhuanyongxigua/lean-rig/issues"
+  },
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
