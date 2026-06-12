@@ -32,7 +32,7 @@ Default harness: `claude-code`.
 - Runtime deps: `commander`, `picocolors`, `diff`. Nothing else.
 - Dev deps: `typescript`, `vitest`, `@types/node`.
 - Build: `tsc` → `dist/`. Bin: `dist/index.js` (shebang).
-- npm package `lean-rig` (CLI command stays `leanrig`); `files`: `dist`, `assets`, `profiles`, `README.md`, `LICENSE`.
+- npm package `leanrig` (same as the CLI command; GitHub repo may differ); `files`: `dist`, `assets`, `profiles`, `README.md`, `LICENSE`.
 
 ## Layout
 
