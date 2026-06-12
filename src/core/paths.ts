@@ -22,9 +22,12 @@ export function homeDir(): string {
 
 /**
  * Walk up from `startDir` to find the nearest directory containing a
- * package.json with `name === "leanrig"`. This resolves the package root
- * whether running from compiled dist/ or from source via vitest.
+ * package.json with our package name ("lean-rig"; "leanrig" accepted for
+ * pre-rename checkouts). This resolves the package root whether running
+ * from compiled dist/ or from source via vitest.
  */
+const PACKAGE_NAMES = new Set(["lean-rig", "leanrig"]);
+
 export function findPackageRoot(startDir: string): string {
   let dir = startDir;
   // eslint-disable-next-line no-constant-condition
@@ -34,7 +37,7 @@ export function findPackageRoot(startDir: string): string {
       try {
         const raw = fs.readFileSync(candidate, "utf8");
         const pkg = JSON.parse(raw) as { name?: string };
-        if (pkg.name === "leanrig") {
+        if (pkg.name !== undefined && PACKAGE_NAMES.has(pkg.name)) {
           return dir;
         }
       } catch {
