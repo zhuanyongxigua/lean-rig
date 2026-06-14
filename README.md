@@ -97,34 +97,20 @@ leanrig install claude-code --profile safe
 
 ### `balanced`
 
-Recommended. Everything in `safe`, plus worker/reviewer subagents, a delegation skill, the `leanrig-doctor` recommend skill, tool-output limits, a usage statusline, and a clearly-marked, reversible delegation directive appended to your `CLAUDE.md` (so the main model actually routes routine work to the cheap subagents).
+Recommended. The premium model stays the **main coordinator**; routine work is pushed to cheaper subagents:
+
+```
+Premium main session (whatever you launch with — no top-level model is set)
+  ├─ haiku explorer   (search, file discovery, log reading)
+  ├─ sonnet worker    (implementation, tests)
+  └─ sonnet reviewer  (first-pass review)
+```
+
+Everything in `safe`, plus worker/reviewer subagents, a delegation skill, the `leanrig-doctor` recommend skill, tool-output caps, a usage statusline, and a clearly-marked, reversible delegation directive appended to your `CLAUDE.md` (so the main model actually routes labor to the cheap subagents).
 
 ```bash
 leanrig install claude-code --profile balanced
 ```
-
-### `aggressive`
-
-For people who would rather retry than burn tokens. Stricter output limits, stronger tool-output caps, more aggressive delegation.
-
-```bash
-leanrig install claude-code --profile aggressive
-```
-
-### `fable-router`
-
-For premium-main workflows. Use the premium model as the coordinator, push routine work to cheaper workers.
-
-```
-Premium main session
-  ├─ haiku explorer
-  ├─ sonnet worker
-  └─ reviewer
-```
-
-### `sonnet-main`
-
-For cheaper default sessions. Sonnet as the main model, escalate only when necessary.
 
 ## Commands
 
@@ -240,7 +226,7 @@ Every file is backed up before it's touched, `leanrig diff` shows every change, 
 
 Experimental (v0.2). Built for people who use AI coding agents heavily and are tired of watching them burn context on avoidable noise.
 
-Use `safe` first. Use `balanced` when you trust it. Use `aggressive` when you know what you are doing.
+Use `safe` first. Use `balanced` when you trust it.
 
 ## License
 

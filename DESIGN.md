@@ -22,7 +22,7 @@ Default harness: `claude-code`.
 ## Non-goals (v0.1)
 
 - No benchmark engine (stub only).
-- No command-rewriting for arbitrary Bash (only a small allowlisted PreToolUse hook, aggressive profile only, and only if the hook `updatedInput` mechanism is confirmed in docs).
+- No command-rewriting for arbitrary Bash and no PreToolUse Bash hooks.
 - No integration with third-party tools (LeanCTX, squeez, ccusage) beyond doctor *detection*.
 - No telemetry, no network calls at runtime.
 
@@ -56,7 +56,7 @@ src/
       doctorChecks.ts
 assets/claude-code/         # template files (shipped in package, copied on install)
   agents/  skills/  output-styles/  hooks/  statusline/
-profiles/claude-code/       # safe.json balanced.json aggressive.json fable-router.json sonnet-main.json
+profiles/claude-code/       # safe.json balanced.json
 test/                       # vitest; all fs tests run against tmp dirs
 docs/claude-code-facts.md   # verified doc facts (env vars, schemas) — source of truth for adapter
 ```

@@ -1,7 +1,7 @@
 {
   "name": "balanced",
   "extends": "safe",
-  "description": "Adds worker/reviewer agents, delegation + doctor skills, a CLAUDE.md delegation directive, statusline, and output caps. Good daily driver.",
+  "description": "Premium model stays the main coordinator; routine work (exploration, implementation, review) is delegated to cheaper subagents. Adds worker/reviewer agents, delegation + doctor skills, a CLAUDE.md delegation directive, statusline, and output caps. Does NOT set a top-level model — uses whatever you launch with.",
   "assets": ["agents/worker", "agents/reviewer", "skills/delegate", "skills/doctor", "statusline"],
   "claudeMd": "delegation",
   "vars": {

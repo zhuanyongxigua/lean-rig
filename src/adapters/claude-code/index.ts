@@ -51,11 +51,6 @@ const ASSET_MAP: Record<string, AssetMapping> = {
     target: "statusline/leanrig-statusline.sh",
     executable: true,
   },
-  "hooks/bash-guard": {
-    src: "hooks/leanrig-bash-guard.sh",
-    target: "hooks/leanrig-bash-guard.sh",
-    executable: true,
-  },
 };
 
 // ---------------------------------------------------------------------------

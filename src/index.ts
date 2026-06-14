@@ -54,7 +54,7 @@ function action<A extends unknown[]>(
 program
   .name("leanrig")
   .description("Install safe, reversible cost-control profiles into AI coding agent harnesses.")
-  .version("0.3.0");
+  .version("0.4.0");
 
 // doctor
 program

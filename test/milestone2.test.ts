@@ -1,7 +1,7 @@
 /**
  * Milestone 2 tests:
- * - Profile plan resolution for all 5 profiles (no unresolved {{var}}, correct target files)
- * - aggressive deep-merge: child env caps are smaller than balanced
+ * - Profile plan resolution for safe + balanced (no unresolved {{var}}, correct target files)
+ * - balanced keeps the premium model as main (sets no top-level model)
  * - Doctor checks with fixtures
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -45,7 +45,7 @@ function setupTmpEnv() {
 // Profile plan resolution
 // ---------------------------------------------------------------------------
 
-describe("profile plan resolution — all 5 profiles", () => {
+describe("profile plan resolution — safe + balanced", () => {
   let env: ReturnType<typeof setupTmpEnv>;
 
   beforeEach(() => {
@@ -103,54 +103,22 @@ describe("profile plan resolution — all 5 profiles", () => {
     expect(settingsJson).toContain(env.claudeConfigDir);
   });
 
-  it("aggressive: resolves; includes bash-guard hook", async () => {
-    const plan = await getPlan("aggressive");
-    const targets = plan.files.map((f) => f.targetAbs);
-    expect(targets.some((t) => t.endsWith("hooks/leanrig-bash-guard.sh"))).toBe(true);
-    assertNoUnresolvedPlaceholders(plan);
-  });
-
-  it("fable-router: resolves without throwing", async () => {
-    const plan = await getPlan("fable-router");
-    assertNoUnresolvedPlaceholders(plan);
-    expect(plan.files.length).toBeGreaterThan(0);
-  });
-
-  it("sonnet-main: resolves; settings include model:sonnet", async () => {
-    const plan = await getPlan("sonnet-main");
-    assertNoUnresolvedPlaceholders(plan);
+  it("balanced: keeps premium model as main — sets no top-level model", async () => {
+    const plan = await getPlan("balanced");
     expect(plan.settings).toBeDefined();
-    expect((plan.settings!.merge as Record<string, unknown>)["model"]).toBe("sonnet");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Aggressive deep-merge: child env caps are smaller than balanced
-// ---------------------------------------------------------------------------
-
-describe("aggressive deep-merge: env caps override balanced", () => {
-  let env: ReturnType<typeof setupTmpEnv>;
-
-  beforeEach(() => {
-    env = setupTmpEnv();
+    const merge = plan.settings!.merge as Record<string, unknown>;
+    // The whole point of the recommender positioning: premium stays the main
+    // coordinator, so balanced must not pin a top-level model.
+    expect(merge["model"]).toBeUndefined();
+    // env caps and statusLine are still configured, though.
+    expect(merge["env"]).toBeDefined();
+    expect(merge["statusLine"]).toBeDefined();
   });
 
-  afterEach(() => {
-    env.cleanup();
-  });
-
-  it("BASH_MAX_OUTPUT_LENGTH is 8000 (child overrides balanced's 20000)", async () => {
-    const { claudeCodeAdapter } = await import("../src/adapters/claude-code/index.js");
-    const plan = await claudeCodeAdapter.planInstall("aggressive", { force: false });
-    const mergeEnv = (plan.settings!.merge as Record<string, unknown>)["env"] as Record<string, string>;
-    expect(mergeEnv["BASH_MAX_OUTPUT_LENGTH"]).toBe("8000");
-  });
-
-  it("MAX_MCP_OUTPUT_TOKENS is 6000 (child overrides balanced's 12000)", async () => {
-    const { claudeCodeAdapter } = await import("../src/adapters/claude-code/index.js");
-    const plan = await claudeCodeAdapter.planInstall("aggressive", { force: false });
-    const mergeEnv = (plan.settings!.merge as Record<string, unknown>)["env"] as Record<string, string>;
-    expect(mergeEnv["MAX_MCP_OUTPUT_TOKENS"]).toBe("6000");
+  it("balanced: appends a CLAUDE.md delegation block", async () => {
+    const plan = await getPlan("balanced");
+    expect(plan.claudeMd).toBeDefined();
+    expect(plan.claudeMd!.block).toMatch(/leanrig-explorer|delegat/i);
   });
 });
 
