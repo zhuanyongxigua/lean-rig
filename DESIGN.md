@@ -119,7 +119,7 @@ Every install writes `~/.leanrig/backups/<id>/manifest.json`:
 ## Safety invariants (reviewer: verify each)
 
 1. Any file we modify or overwrite is copied into the backup dir **first**.
-2. Rollback only (a) deletes files with `existedBefore: false`, (b) restores backups. It never touches unlisted files.
+2. Rollback only (a) deletes files with `existedBefore: false`, (b) restores backups, (c) for the CLAUDE.md append entry, surgically removes only the marked block (`<!-- leanrig:start -->`..`<!-- leanrig:end -->`), preserving surrounding user content; if the markers are gone it restores the full backup under `--force`. It never touches unlisted files.
 3. If a target file exists with different content and was not written by us → **skip + warn**; overwrite only with `--force` (still backed up).
 4. If a manifest file's current hash ≠ `writtenHash` (user edited it after install), rollback/overwrite of that file requires `--force`.
 5. `--dry-run` writes nothing anywhere (including `~/.leanrig`).
@@ -136,19 +136,20 @@ Read-only; sources: `$CLAUDE_CONFIG_DIR` or `~/.claude`, `~/.claude.json`, proje
 
 Vitest. All fs tests run with `LEANRIG_HOME` and `CLAUDE_CONFIG_DIR` pointed at per-test tmp dirs — **tests must never touch the real `~/.claude` or `~/.leanrig`**. Required coverage: jsonMerge apply semantics; install→rollback byte-exact roundtrip (created files removed, modified files restored); collision policy (skip vs `--force`); user-edit detection via hash; dry-run writes nothing; profile inheritance resolution.
 
-## v0.2 — third-party tools registry (`tools` / `add` / `remove`)
+## Third-party tools — recommender, not installer (`tools` + leanrig-doctor skill)
 
-LeanRig is an **installer/aggregator, never a redistributor**: the repo and npm package contain only our own code plus a metadata registry (name, license, source URL, official install commands). We never vendor third-party code, prompts, or binaries, and never run remote scripts (`curl | bash`).
+LeanRig **recommends third-party tools and shows their official install commands, but never installs them.** The repo and npm package contain only our own code plus a metadata registry (name, license, source URL, official install/remove commands as text). We never vendor third-party code, prompts, or binaries, never run remote scripts (`curl | bash`), and never run a tool's installer on the user's behalf. The user installs through each tool's own channel.
+
+This replaces the earlier `add`/`remove` design: leanrig only writes its **own** reversible config (profiles); everything third-party is guidance. That removes the highest-risk, highest-maintenance code (running `npm install -g` / `claude plugin install`, the per-key settings un-merge engine) and keeps the trust story simple.
 
 ### Commands
 
 ```
-leanrig tools [harness]                 # list registry entries + installed/not-installed detection
-leanrig add <tool> [harness]            # install a tool (--dry-run, --yes, --force)
-leanrig remove <tool> [harness]         # uninstall (--dry-run, --yes, --force)
+leanrig tools [harness] [--json]   # list registry entries + read-only install detection + official install commands
+leanrig doctor [harness] [--json]  # audit; --json feeds the leanrig-doctor skill
 ```
 
-`add`/`remove` print the tool's license, source, and the exact actions (settings keys or shell commands) **before** doing anything, then require confirmation via a y/N prompt; `--yes` skips the prompt (needed for scripts/tests), `--dry-run` prints the plan and exits.
+`tools` is read-only: it detects what's already installed and prints each tool's official `install` string for the user to copy/paste. There is no `add`/`remove`.
 
 ### ToolSpec (adapter-provided registry; engine stays harness-agnostic)
 
@@ -159,42 +160,30 @@ interface ToolSpec {
   description: string;    // what it saves, one line
   license: string;        // SPDX, from facts doc
   source: string;         // homepage/repo URL
-  kind: "settings" | "external" | "guide";
-  overlaps?: string;      // human-readable overlap warning shown by add + doctor
+  install: string;        // official install instructions — DISPLAYED, never executed
+  remove?: string;        // official uninstall instructions — displayed
+  overlaps?: string;      // human-readable overlap warning shown by tools + doctor
 }
 
 interface ToolStatus { installed: boolean; detail?: string }
-
-type ToolPlan = {
-  kind: "settings";       // settings-patch tools
-  settingsPath: string;   // <configDir>/settings.json
-  merge: Record<string, unknown>;
-} | {
-  kind: "external";       // external CLI tools
-  requires?: string;      // binary that must exist (e.g. "claude", "npm")
-  commands: string[][];   // argv arrays, executed in order, NEVER through a shell string
-} | {
-  kind: "guide";          // print instructions only
-  instructions: string;
-};
 ```
 
-Adapter gains optional methods: `listTools?()`, `detectTool?(id)`, `planAddTool?(id)`, `planRemoveTool?(id)`. Adapters without them simply have no tools.
+Adapter gains optional **read-only** methods: `listTools?()`, `detectTool?(id)`. There is no `planAddTool`/`planRemoveTool` and no `ToolPlan`. Adapters without these simply have no tools.
 
 ### Engine: `core/tools.ts`
 
-- **settings-kind add**: record, for every leaf key path in `merge`, the *previous value* (or "absent") into a tool manifest at `~/.leanrig/tools/<harness>/<toolId>.json`, plus a full backup copy of settings.json; then deep-merge. **remove** = targeted un-merge: restore each recorded key path to its previous value (delete if it was absent). If a current leaf value ≠ what we wrote (user edited), skip + warn, require `--force`. This is deliberately NOT wholesale file restore — profile installs/rollbacks may legitimately change other keys in between (cross-layer safety).
-- **external-kind**: run argv arrays via a `CommandRunner` interface (`run(argv): {code, stdout, stderr}`); the real runner uses `child_process.spawnSync` without `shell: true`. Tests inject a fake runner — **tests must never execute real npm/claude/squeez commands**. On add success, record `{addedAt, kind}` in the tool manifest so `tools` can show "added by leanrig". Mark output clearly: external tools are managed by their own ecosystem and are uninstalled via their own commands, not byte-restored.
-- **guide-kind**: print instructions; no state recorded.
-- State: tool manifests live under `~/.leanrig/tools/` (separate namespace from profile backups; the profile one-active-layer invariant is untouched).
-- Tool ids come only from the adapter registry; unknown id → clean one-line error.
+Reduced to a read-only `CommandRunner` (`run(argv): {code, stdout, stderr}`, real impl `child_process.spawnSync`, no `shell: true`) used **only for detection probes** (`claude plugin list`, `lean-ctx --version`). Tests inject a fake runner — **tests never execute real npm/claude/squeez commands**. No manifests, no settings un-merge, no `~/.leanrig/tools/` state.
 
-### Registry contents (v0.2; all facts from docs/claude-code-facts.md "Third-party tools" table)
+### Registry contents (facts from docs/claude-code-facts.md "Third-party tools" table)
 
-- `ccusage-statusline` (settings) — overlap: replaces any current statusLine, incl. leanrig's.
-- `caveman` (external, requires `claude`) — overlap: stacks with Token Saver output style; pick one.
-- `squeez` (external, requires `npm`) — overlap: composes with `BASH_MAX_OUTPUT_LENGTH`; doctor notes redundancy.
-- `lean-ctx` (guide) — detection + brew/repo pointer only in v0.2.
+- `ccusage-statusline` — install = settings.json `statusLine` snippet; overlap: replaces any current statusLine, incl. leanrig's.
+- `caveman` — install = `claude plugin marketplace add` + `claude plugin install`; overlap: stacks with Token Saver output style; pick one.
+- `squeez` — install = `npm install -g squeez` + `squeez setup`; overlap: composes with `BASH_MAX_OUTPUT_LENGTH`; doctor notes redundancy.
+- `lean-ctx` — install = `brew tap` + `brew install`.
+
+### leanrig-doctor skill (the diagnose → recommend bridge)
+
+A Claude Code skill shipped as an asset (`assets/claude-code/skills/doctor/SKILL.md`, installed by `balanced`+). The deterministic CLI measures; the skill judges. It runs `leanrig doctor --json` + `leanrig tools --json`, then uses the model to map findings → prioritized fixes (config-level wins first via `leanrig install`, then third-party tools that match an actual finding), respecting `overlaps` and skipping already-installed tools. It presents official install commands; it never runs third-party installers.
 
 ### Doctor additions
 
@@ -204,10 +193,9 @@ Adapter gains optional methods: `listTools?()`, `detectTool?(id)`, `planAddTool?
 ### Safety rules (extend the v0.1 invariants)
 
 10. The npm package never contains third-party code, prompt text, or binaries — registry metadata only.
-11. External commands are exact argv arrays from the facts doc, run without a shell; nothing is ever piped from the network into an interpreter.
-12. `add`/`remove` show license + exact actions before acting; no confirmation, no action (except `--yes`).
-13. Settings-kind tool removal restores only the keys the tool wrote, honoring the user-edit rule (skip + warn without `--force`).
+11. leanrig never installs or uninstalls third-party software: registry `install`/`remove` strings are displayed for the user to run, never executed. Detection probes are read-only argv (no shell), and nothing is piped from the network into an interpreter.
+12. `tools` and the leanrig-doctor skill surface license + source + official commands so the user chooses and installs deliberately.
 
-## Roadmap (not v0.1/v0.2)
+## Roadmap
 
-`bench`; more adapters (codex, gemini-cli, opencode); default-on tool-output hooks; lean-ctx auto-install; uninstall-vs-rollback split.
+`bench`; more adapters (codex, gemini-cli, opencode); default-on tool-output hooks.

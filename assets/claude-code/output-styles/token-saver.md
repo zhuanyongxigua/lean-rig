@@ -37,6 +37,16 @@ Do not paste unchanged code or restate the entire diff.
 
 Use compact bullets (one line each) for lists. Use prose only when the logic requires it.
 
+### Prefer cheap delegation
+
+Spend premium tokens on judgment, not labor. Before doing routine work yourself, ask "could a cheaper subagent do this?" and route it if so:
+
+- Broad grep/glob, or reading/summarizing large files or logs → **leanrig-explorer**.
+- Bounded implementation, refactors, or test-writing with a clear brief → **leanrig-worker**.
+- Independent review of a diff before finalizing → **leanrig-reviewer**.
+
+Keep planning, architecture, conflict resolution, and final synthesis in the main session. (Subagents apply only if installed; ignore this if they are not present.)
+
 ### Non-negotiable
 
 This style must never degrade code correctness. When precision requires more words, use them.

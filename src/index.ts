@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { program } from "commander";
 import pc from "picocolors";
-import readline from "node:readline/promises";
 import {
   registerAdapter,
   getAdapter,
@@ -14,7 +13,6 @@ import {
   runRollback,
   runDiff,
 } from "./core/installer.js";
-import { runAddTool, runRemoveTool, realRunner } from "./core/tools.js";
 
 // Register built-in adapters
 registerAdapter(claudeCodeAdapter);
@@ -56,19 +54,29 @@ function action<A extends unknown[]>(
 program
   .name("leanrig")
   .description("Install safe, reversible cost-control profiles into AI coding agent harnesses.")
-  .version("0.1.0");
+  .version("0.3.0");
 
 // doctor
 program
   .command("doctor [harness]")
   .description("Read-only audit of your harness configuration.")
-  .action(action(async (harness?: string) => {
+  .option("--json", "Output findings as JSON (for scripts and the leanrig-doctor skill)", false)
+  .action(action(async (harness: string | undefined, opts: { json: boolean }) => {
     const adapter = resolveAdapter(harness);
     const detectResult = await adapter.detect();
+    const findings = await adapter.doctor();
+    if (opts.json) {
+      // Machine-readable: only the findings go to stdout. Keep the
+      // not-detected note on stderr so it never corrupts the JSON.
+      if (!detectResult.installed) {
+        console.error(`Harness "${adapter.name}" not detected: ${detectResult.detail ?? ""}`);
+      }
+      console.log(JSON.stringify(findings, null, 2));
+      return;
+    }
     if (!detectResult.installed) {
       console.log(pc.yellow(`Harness "${adapter.name}" not detected: ${detectResult.detail ?? ""}`));
     }
-    const findings = await adapter.doctor();
     renderFindings(findings);
   }));
 
@@ -127,17 +135,34 @@ program
     }
   }));
 
-// tools
+// tools — read-only registry: what's installed + official install commands.
+// leanrig never installs third-party tools; it shows the commands for you to run.
 program
   .command("tools [harness]")
-  .description("List third-party tools in the registry with install status.")
-  .action(action(async (harness?: string) => {
+  .description("List third-party cost-saving tools, install status, and their official install commands.")
+  .option("--json", "Output the registry as JSON (for scripts and the leanrig-doctor skill)", false)
+  .action(action(async (harness: string | undefined, opts: { json: boolean }) => {
     const adapter = resolveAdapter(harness);
     if (!adapter.listTools) {
-      console.log(pc.dim(`No tools registry for harness "${adapter.name}".`));
+      if (opts.json) {
+        console.log("[]");
+      } else {
+        console.log(pc.dim(`No tools registry for harness "${adapter.name}".`));
+      }
       return;
     }
     const entries = await adapter.listTools();
+
+    if (opts.json) {
+      const out = entries.map(({ spec, status }) => ({
+        ...spec,
+        installed: status.installed,
+        detail: status.detail,
+      }));
+      console.log(JSON.stringify(out, null, 2));
+      return;
+    }
+
     if (entries.length === 0) {
       console.log(pc.dim("No tools in registry."));
       return;
@@ -149,156 +174,34 @@ program
         : pc.dim("not installed");
       console.log(`  ${pc.bold(spec.id)}  [${statusStr}]  ${spec.license}`);
       console.log(`    ${spec.description}`);
-      if (status.detail && status.installed) {
-        console.log(pc.dim(`    ${status.detail}`));
+      if (spec.overlaps) {
+        console.log(pc.yellow(`    overlap: ${spec.overlaps}`));
+      }
+      if (status.installed) {
+        if (status.detail) console.log(pc.dim(`    ${status.detail}`));
+      } else {
+        const indented = spec.install
+          .split("\n")
+          .map((l) => `      ${l}`)
+          .join("\n");
+        console.log(pc.dim(`    install (run yourself — leanrig won't):`));
+        console.log(pc.dim(indented));
       }
     }
-  }));
-
-// add
-program
-  .command("add <tool> [harness]")
-  .description("Add a third-party tool to a harness.")
-  .option("--dry-run", "Print plan without executing anything", false)
-  .option("--yes", "Skip confirmation prompt", false)
-  .option("--force", "Force restore of user-modified keys (settings-kind remove)", false)
-  .action(action(async (tool: string, harness: string | undefined, opts: { dryRun: boolean; yes: boolean; force: boolean }) => {
-    const adapter = resolveAdapter(harness);
-    if (!adapter.planAddTool || !adapter.detectTool) {
-      throw new Error(`No tools registry for harness "${adapter.name}".`);
-    }
-
-    // Find spec
-    const allTools = adapter.listTools ? await adapter.listTools() : [];
-    const entry = allTools.find((e) => e.spec.id === tool);
-    if (!entry) {
-      throw new Error(`Unknown tool "${tool}" for harness "${adapter.name}". Run \`leanrig tools\` to see available tools.`);
-    }
-    const { spec } = entry;
-    const plan = await adapter.planAddTool(tool);
-
-    // Print plan header
-    console.log(pc.bold(`\nTool: ${spec.title}`));
-    console.log(`  License : ${spec.license}`);
-    console.log(`  Source  : ${spec.source}`);
-    if (spec.overlaps) {
-      console.log(pc.yellow(`  Overlap : ${spec.overlaps}`));
-    }
-
-    // Print what will happen
-    if (plan.kind === "settings") {
-      console.log(`\n  Will merge into ${plan.settingsPath}:`);
-      console.log(JSON.stringify(plan.merge, null, 2).split("\n").map((l) => `    ${l}`).join("\n"));
-    } else if (plan.kind === "external") {
-      if (plan.requires) {
-        console.log(`\n  Requires: ${plan.requires}`);
-      }
-      console.log(`\n  Will run:`);
-      for (const argv of plan.commands) {
-        console.log(`    ${argv.join(" ")}`);
-      }
-    } else if (plan.kind === "guide") {
-      console.log(`\n  Instructions:\n`);
-      console.log(plan.instructions.split("\n").map((l) => `    ${l}`).join("\n"));
-    }
-
-    if (opts.dryRun) {
-      console.log(pc.dim("\n(dry-run — no changes made)"));
-      const result = await runAddTool(adapter.name, plan, spec, { dryRun: true, force: opts.force, runner: realRunner });
-      renderFindings(result.findings);
-      return;
-    }
-
-    // Confirmation
-    if (!opts.yes) {
-      if (!process.stdin.isTTY) {
-        console.log(pc.yellow("\nStdin is not a TTY and --yes was not passed. Aborting. Re-run with --yes to confirm."));
-        process.exit(0);
-      }
-      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-      const answer = await rl.question("\nProceed? [y/N] ");
-      rl.close();
-      if (answer.trim().toLowerCase() !== "y") {
-        console.log(pc.dim("Cancelled."));
-        process.exit(0);
-      }
-    }
-
-    const result = await runAddTool(adapter.name, plan, spec, { dryRun: false, force: opts.force, runner: realRunner });
-    renderFindings(result.findings);
-  }));
-
-// remove
-program
-  .command("remove <tool> [harness]")
-  .description("Remove a third-party tool from a harness.")
-  .option("--dry-run", "Print plan without executing anything", false)
-  .option("--yes", "Skip confirmation prompt", false)
-  .option("--force", "Force restore of user-modified keys", false)
-  .action(action(async (tool: string, harness: string | undefined, opts: { dryRun: boolean; yes: boolean; force: boolean }) => {
-    const adapter = resolveAdapter(harness);
-    if (!adapter.planRemoveTool) {
-      throw new Error(`No tools registry for harness "${adapter.name}".`);
-    }
-
-    // Find spec
-    const allTools = adapter.listTools ? await adapter.listTools() : [];
-    const entry = allTools.find((e) => e.spec.id === tool);
-    if (!entry) {
-      throw new Error(`Unknown tool "${tool}" for harness "${adapter.name}". Run \`leanrig tools\` to see available tools.`);
-    }
-    const { spec } = entry;
-    const plan = await adapter.planRemoveTool(tool);
-
-    // Print plan header
-    console.log(pc.bold(`\nTool: ${spec.title}`));
-    console.log(`  License : ${spec.license}`);
-    console.log(`  Source  : ${spec.source}`);
-
-    // Print what will happen
-    if (plan.kind === "settings") {
-      console.log(`\n  Will restore settings keys in ${plan.settingsPath}`);
-    } else if (plan.kind === "external") {
-      console.log(`\n  Will run:`);
-      for (const argv of plan.commands) {
-        console.log(`    ${argv.join(" ")}`);
-      }
-    } else if (plan.kind === "guide") {
-      console.log(`\n  This is a guide-only tool; leanrig cannot auto-remove it.`);
-    }
-
-    if (opts.dryRun) {
-      console.log(pc.dim("\n(dry-run — no changes made)"));
-      const result = await runRemoveTool(adapter.name, plan, spec, { dryRun: true, force: opts.force, runner: realRunner });
-      renderFindings(result.findings);
-      return;
-    }
-
-    // Confirmation
-    if (!opts.yes) {
-      if (!process.stdin.isTTY) {
-        console.log(pc.yellow("\nStdin is not a TTY and --yes was not passed. Aborting. Re-run with --yes to confirm."));
-        process.exit(0);
-      }
-      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-      const answer = await rl.question("\nProceed? [y/N] ");
-      rl.close();
-      if (answer.trim().toLowerCase() !== "y") {
-        console.log(pc.dim("Cancelled."));
-        process.exit(0);
-      }
-    }
-
-    const result = await runRemoveTool(adapter.name, plan, spec, { dryRun: false, force: opts.force, runner: realRunner });
-    renderFindings(result.findings);
+    console.log(
+      pc.dim(
+        "\nleanrig shows official install commands but never runs them. " +
+          "Copy/paste to install through each tool's own channel."
+      )
+    );
   }));
 
 // bench
 program
   .command("bench")
-  .description("Benchmark token usage (planned for v0.2).")
+  .description("Benchmark token usage (planned).")
   .action(() => {
-    console.log(pc.dim("bench: planned for v0.2 — not yet implemented."));
+    console.log(pc.dim("bench: planned — not yet implemented."));
   });
 
 program.parse(process.argv);

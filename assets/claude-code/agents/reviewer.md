@@ -1,6 +1,6 @@
 ---
 name: leanrig-reviewer
-description: Independent read-only review of a diff before finalizing; focus on blocking correctness issues with evidence.
+description: Use PROACTIVELY before finalizing any non-trivial diff — run an independent read-only review here rather than self-reviewing with the main model. Focus on blocking correctness issues with file:line evidence; returns a verdict, not edits.
 model: {{reviewerModel}}
 tools: Read, Grep, Glob, Bash
 ---

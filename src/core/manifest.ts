@@ -15,6 +15,21 @@ export interface ManifestSettings {
   writtenHash: string;
 }
 
+/**
+ * Record of a marker-delimited block appended to the user's CLAUDE.md.
+ * Unlike a whole-file asset, install appends a block (never overwrites) and
+ * rollback removes only that block, preserving the user's surrounding content.
+ * The full pre-install file is still backed up for the markers-missing path.
+ */
+export interface ManifestClaudeMd {
+  path: string;
+  existedBefore: boolean;
+  backupRelPath: string | null;
+  writtenHash: string;
+  blockStart: string;
+  blockEnd: string;
+}
+
 export interface Manifest {
   version: 1;
   harness: string;
@@ -23,6 +38,7 @@ export interface Manifest {
   configDir: string;
   files: ManifestFile[];
   settings?: ManifestSettings;
+  claudeMd?: ManifestClaudeMd;
 }
 
 export function writeManifest(backupDir: string, manifest: Manifest): void {

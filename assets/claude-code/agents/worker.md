@@ -1,6 +1,6 @@
 ---
 name: leanrig-worker
-description: Bounded implementation, refactoring, or test-writing tasks with a self-contained brief; expects objective/scope/exclusions/acceptance in the brief.
+description: Use PROACTIVELY for bounded implementation, refactoring, or test-writing that fits a self-contained brief (objective/scope/exclusions/acceptance). Hand off such work here instead of doing it with the main premium model; reserve the main model for judgment and synthesis.
 model: {{workerModel}}
 ---
 

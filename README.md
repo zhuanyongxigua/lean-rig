@@ -5,7 +5,7 @@
 
 **Put your AI coding agent on a budget.**
 
-LeanRig reduces Claude Code token usage and API costs. It audits where your setup wastes tokens, installs safe and reversible cost-saving profiles — cheap model routing, concise output, tool-output caps — and installs the best community token-saving tools (ccusage, caveman, squeez) with one command. Everything backed up, everything rollback-able.
+LeanRig reduces Claude Code token usage and API costs. It audits where your setup wastes tokens, installs safe and reversible cost-saving profiles — cheap model routing, concise output, tool-output caps — and points you to the best community token-saving tools (ccusage, caveman, squeez, lean-ctx) with their official install commands. Everything LeanRig writes is backed up and rollback-able; third-party tools you install yourself, through their own channels.
 
 Claude Code first. Harness-agnostic by design.
 
@@ -97,7 +97,7 @@ leanrig install claude-code --profile safe
 
 ### `balanced`
 
-Recommended. Everything in `safe`, plus a delegation skill, tool-output limits, and a usage statusline.
+Recommended. Everything in `safe`, plus worker/reviewer subagents, a delegation skill, the `leanrig-doctor` recommend skill, tool-output limits, a usage statusline, and a clearly-marked, reversible delegation directive appended to your `CLAUDE.md` (so the main model actually routes routine work to the cheap subagents).
 
 ```bash
 leanrig install claude-code --profile balanced
@@ -135,13 +135,11 @@ For cheaper default sessions. Sonnet as the main model, escalate only when neces
 | `leanrig diff` | Show exactly what LeanRig changed |
 | `leanrig rollback` | Restore your previous config |
 | `leanrig profiles` | List available profiles |
-| `leanrig tools` | List third-party cost-saving tools + what's installed |
-| `leanrig add <tool>` | Install a third-party tool through its official channel |
-| `leanrig remove <tool>` | Uninstall it again |
+| `leanrig tools` | List third-party cost-saving tools, what's installed, and how to install them |
 
-## One toolbox, not another tool
+## Recommends tools, never installs them
 
-The token-saving ecosystem is fragmented: one tool compresses output, another compresses Bash logs, another tracks spend. LeanRig is the toolbox that installs and manages them — through their official channels, never vendored, always removable.
+The token-saving ecosystem is fragmented: one tool compresses output, another compresses Bash logs, another tracks spend. LeanRig is the **map**, not the installer: it detects what you already have and shows each tool's **official** install command for you to run. It never installs third-party software on your behalf, never vendors it, never runs `curl | bash`.
 
 ```
 $ leanrig tools
@@ -149,17 +147,17 @@ $ leanrig tools
 Tools for claude-code:
   ccusage-statusline  [not installed]  MIT
     Shows model, cost, context, and rate-limit info in the terminal statusline.
+    install (run yourself — leanrig won't):
+      Add to ~/.claude/settings.json:
+        "statusLine": { "type": "command", "command": "npx -y ccusage statusline", "padding": 0 }
   caveman             [not installed]  MIT
     Makes Claude talk like a caveman — cuts ~75% of output tokens.
-  squeez              [not installed]  Apache-2.0
-    Hook-based Bash output compressor with cross-call dedup — up to 95%.
-  lean-ctx            [not installed]  Apache-2.0
-    Local context-intelligence binary — compressed reads, 60-90% fewer tokens.
-
-$ leanrig add ccusage-statusline
+    install: claude plugin marketplace add JuliusBrussee/caveman && claude plugin install caveman@caveman
+  squeez              [not installed]  Apache-2.0  ...
+  lean-ctx            [not installed]  Apache-2.0  ...
 ```
 
-Every `add` shows you the tool's license, source, and the exact changes or commands **before** anything happens. Settings-based tools are reverted key-by-key on `remove` — your own edits stay untouched. LeanRig never runs `curl | bash` on your behalf.
+Want a recommendation instead of a catalog? The **`leanrig-doctor` skill** (installed by the `balanced` profile) runs `leanrig doctor --json` + `leanrig tools --json`, then uses the model's judgment to tell you *which* tools fit your actual setup — and hands you the exact commands to run. LeanRig measures; the skill recommends; you install.
 
 ## Doctor
 
@@ -200,7 +198,7 @@ leanrig diff                                               # see what changed
 leanrig rollback                                           # undo everything
 ```
 
-LeanRig never deletes your files, never overwrites modified files without `--force`, and keeps a manifest of everything it touches.
+LeanRig never deletes your files, never overwrites modified files without `--force`, and keeps a manifest of everything it touches. The one file it writes *into* rather than alongside is `CLAUDE.md` (balanced+): it **appends** a block wrapped in `<!-- leanrig:start -->` / `<!-- leanrig:end -->`, never overwriting your content, and `rollback` removes only that block — your own edits stay.
 
 ## Harness-agnostic
 
@@ -233,7 +231,7 @@ Usually: large CLAUDE.md loaded every session, uncapped Bash/MCP tool output flo
 Route judgment to the expensive model and labor to cheap ones, cap tool output instead of compressing answers, and keep error messages verbatim. That's exactly what the `safe` and `balanced` profiles do — and they never touch code-writing instructions.
 
 **How do I see what Claude Code is costing me?**
-`leanrig add ccusage-statusline` puts model, context usage, and session cost in your statusline. One command, fully removable.
+`leanrig tools` shows you `ccusage-statusline` and the exact command to put model, context usage, and session cost in your statusline — you run it yourself through ccusage's official channel.
 
 **Will this break my existing setup?**
 Every file is backed up before it's touched, `leanrig diff` shows every change, and one `leanrig rollback` restores your exact pre-install state.

@@ -1,8 +1,8 @@
 import type { Finding } from "../core/report.js";
 import type { InstallPlan } from "../core/installer.js";
-import type { ToolSpec, ToolStatus, ToolPlan } from "./toolTypes.js";
+import type { ToolSpec, ToolStatus } from "./toolTypes.js";
 
-export type { ToolSpec, ToolStatus, ToolPlan };
+export type { ToolSpec, ToolStatus };
 
 export interface DetectResult {
   installed: boolean;
@@ -25,11 +25,10 @@ export interface Adapter {
   /** List available profile names */
   listProfiles(): Promise<string[]>;
 
-  // Optional third-party tools registry methods (v0.2)
+  // Optional third-party tools registry methods (read-only: list + detect).
+  // leanrig recommends and shows official install commands but never runs them.
   listTools?(): Promise<Array<{ spec: ToolSpec; status: ToolStatus }>>;
   detectTool?(id: string): Promise<ToolStatus>;
-  planAddTool?(id: string): Promise<ToolPlan>;
-  planRemoveTool?(id: string): Promise<ToolPlan>;
 }
 
 /** Global adapter registry: name -> Adapter */

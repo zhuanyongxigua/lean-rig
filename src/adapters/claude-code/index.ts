@@ -3,14 +3,12 @@ import path from "path";
 import { homeDir, packageRoot } from "../../core/paths.js";
 import type { Adapter, DetectResult, AdapterInstallOptions } from "../types.js";
 import type { Finding } from "../../core/report.js";
-import type { InstallPlan, PlannedFile, SettingsPatch } from "../../core/installer.js";
+import type { InstallPlan, PlannedFile, SettingsPatch, ClaudeMdPatch } from "../../core/installer.js";
 import { deepMerge } from "../../core/jsonMerge.js";
 import { doctorChecks } from "./doctorChecks.js";
 import {
   toolRegistry,
   detectTool,
-  planAddTool,
-  planRemoveTool,
 } from "./toolRegistry.js";
 import { realRunner } from "../../core/tools.js";
 
@@ -40,6 +38,10 @@ const ASSET_MAP: Record<string, AssetMapping> = {
     src: "skills/delegate/SKILL.md",
     target: "skills/leanrig-delegate/SKILL.md",
   },
+  "skills/doctor": {
+    src: "skills/doctor/SKILL.md",
+    target: "skills/leanrig-doctor/SKILL.md",
+  },
   "output-styles/token-saver": {
     src: "output-styles/token-saver.md",
     target: "output-styles/leanrig-token-saver.md",
@@ -66,12 +68,15 @@ interface ProfileJson {
   assets?: string[];
   vars?: Record<string, string>;
   settings?: Record<string, unknown>;
+  /** Asset id under assets/claude-code/claude-md/ to append to CLAUDE.md. */
+  claudeMd?: string;
 }
 
 interface ResolvedProfile {
   assets: string[];
   vars: Record<string, string>;
   settings: Record<string, unknown>;
+  claudeMd?: string;
 }
 
 /** Load and resolve profile with single-inheritance `extends`. */
@@ -101,6 +106,7 @@ function resolveProfile(
       assets: p.assets ?? [],
       vars: p.vars ?? {},
       settings: p.settings ?? {},
+      claudeMd: p.claudeMd,
     };
   }
 
@@ -132,6 +138,8 @@ function resolveProfile(
     assets: mergedAssets,
     vars: mergedVars,
     settings: mergedSettings,
+    // Child wins; otherwise inherit the parent's CLAUDE.md block.
+    claudeMd: p.claudeMd ?? parent.claudeMd,
   };
 }
 
@@ -233,14 +241,6 @@ export const claudeCodeAdapter: Adapter = {
     return detectTool(id, realRunner);
   },
 
-  async planAddTool(id: string) {
-    return planAddTool(id);
-  },
-
-  async planRemoveTool(id: string) {
-    return planRemoveTool(id);
-  },
-
   async planInstall(
     profileName: string,
     _opts: AdapterInstallOptions
@@ -286,12 +286,23 @@ export const claudeCodeAdapter: Adapter = {
       };
     }
 
+    let claudeMdPatch: ClaudeMdPatch | undefined;
+    if (resolved.claudeMd) {
+      const srcPath = path.join(assetsDir, "claude-md", `${resolved.claudeMd}.md`);
+      if (!fs.existsSync(srcPath)) {
+        throw new Error(`CLAUDE.md asset not found: ${srcPath}`);
+      }
+      const block = substituteVars(fs.readFileSync(srcPath, "utf8"), resolved.vars);
+      claudeMdPatch = { fileAbs: path.join(configDir, "CLAUDE.md"), block };
+    }
+
     return {
       harness: "claude-code",
       profile: profileName,
       configDir,
       files: plannedFiles,
       settings: settingsPatch,
+      claudeMd: claudeMdPatch,
     };
   },
 };

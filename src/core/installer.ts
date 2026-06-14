@@ -15,6 +15,7 @@ import {
   readManifest,
   type Manifest,
   type ManifestFile,
+  type ManifestClaudeMd,
 } from "./manifest.js";
 import { addInstall, removeInstall, getLastInstallId } from "./state.js";
 import { leanrigHome } from "./paths.js";
@@ -32,12 +33,38 @@ export interface SettingsPatch {
   merge: Record<string, unknown>;
 }
 
+/**
+ * Append a marker-delimited block to the user's CLAUDE.md. Appended, never
+ * overwritten; idempotent (re-install is a no-op if the block is present);
+ * rollback removes only the block, preserving surrounding user content.
+ */
+export interface ClaudeMdPatch {
+  fileAbs: string;
+  block: string;
+}
+
 export interface InstallPlan {
   harness: string;
   profile: string;
   configDir: string;
   files: PlannedFile[];
   settings?: SettingsPatch;
+  claudeMd?: ClaudeMdPatch;
+}
+
+/** Marker comments wrapping leanrig's appended CLAUDE.md block. */
+export const CLAUDE_MD_START = "<!-- leanrig:start -->";
+export const CLAUDE_MD_END = "<!-- leanrig:end -->";
+
+/**
+ * Final CLAUDE.md content after appending leanrig's block, or null when the
+ * block is already present (idempotent no-op).
+ */
+function buildClaudeMdContent(current: string, block: string): string | null {
+  if (current.includes(CLAUDE_MD_START)) return null;
+  const wrapped = `${CLAUDE_MD_START}\n${block.trim()}\n${CLAUDE_MD_END}\n`;
+  const base = current.replace(/\s*$/, "");
+  return base.length > 0 ? `${base}\n\n${wrapped}` : wrapped;
 }
 
 export interface InstallOptions {
@@ -181,6 +208,17 @@ export async function runInstall(
     }
   }
 
+  // Determine CLAUDE.md append action (append-only, idempotent).
+  let claudeMdNewContent: string | null = null;
+  let claudeMdUnchanged = true;
+  if (plan.claudeMd) {
+    const current = fs.existsSync(plan.claudeMd.fileAbs)
+      ? fs.readFileSync(plan.claudeMd.fileAbs, "utf8")
+      : "";
+    claudeMdNewContent = buildClaudeMdContent(current, plan.claudeMd.block);
+    claudeMdUnchanged = claudeMdNewContent === null;
+  }
+
   // Check if everything is unchanged (re-install same profile = no-op)
   const allFilesUnchanged = [...fileActions.values()].every(
     (a) => a === "unchanged" || a === "skip"
@@ -202,8 +240,12 @@ export async function runInstall(
       const backupDir = path.join(leanrigHome(), "backups", backupId);
       console.log(pc.dim(`  (backup would go to ${backupDir})`));
     }
+    if (plan.claudeMd) {
+      const label = actionLabel(claudeMdUnchanged ? "unchanged" : "append");
+      console.log(`  ${label}  ${plan.claudeMd.fileAbs} (CLAUDE.md block, appended)`);
+    }
     // Reflect the real replace/refuse behavior so the preview isn't misleading.
-    if (prevManifest && !(allFilesUnchanged && settingsUnchanged)) {
+    if (prevManifest && !(allFilesUnchanged && settingsUnchanged && claudeMdUnchanged)) {
       if (prevManifest.profile !== plan.profile && !opts.force) {
         console.log(
           pc.yellow(
@@ -224,7 +266,7 @@ export async function runInstall(
   }
 
   // Check no-op BEFORE doing anything
-  if (allFilesUnchanged && settingsUnchanged) {
+  if (allFilesUnchanged && settingsUnchanged && claudeMdUnchanged) {
     findings.push({
       level: "ok",
       title: `Profile "${plan.profile}" already installed — nothing to do.`,
@@ -351,6 +393,37 @@ export async function runInstall(
     });
   }
 
+  // CLAUDE.md append (append-only; full file backed up for the markers-gone path)
+  let manifestClaudeMd: ManifestClaudeMd | undefined = undefined;
+  if (plan.claudeMd && claudeMdNewContent !== null) {
+    const fileAbs = plan.claudeMd.fileAbs;
+    const existedBefore = fs.existsSync(fileAbs);
+    let backupRelPath: string | null = null;
+    if (existedBefore) {
+      backupRelPath = "CLAUDE.md.bak";
+      backupFile(fileAbs, backupDir, backupRelPath);
+    }
+    fs.mkdirSync(path.dirname(fileAbs), { recursive: true });
+    fs.writeFileSync(fileAbs, claudeMdNewContent, "utf8");
+    manifestClaudeMd = {
+      path: fileAbs,
+      existedBefore,
+      backupRelPath,
+      writtenHash: hashContent(claudeMdNewContent),
+      blockStart: CLAUDE_MD_START,
+      blockEnd: CLAUDE_MD_END,
+    };
+    findings.push({
+      level: "ok",
+      title: `${existedBefore ? "Appended leanrig block to" : "Created"}: ${fileAbs}`,
+    });
+  } else if (plan.claudeMd) {
+    findings.push({
+      level: "ok",
+      title: `CLAUDE.md block already present: ${plan.claudeMd.fileAbs}`,
+    });
+  }
+
   // Write manifest
   const manifest: Manifest = {
     version: 1,
@@ -360,6 +433,7 @@ export async function runInstall(
     configDir: plan.configDir,
     files: manifestFiles,
     settings: manifestSettings,
+    claudeMd: manifestClaudeMd,
   };
   writeManifest(backupDir, manifest);
 
@@ -384,6 +458,8 @@ function actionLabel(action: string): string {
       return pc.yellow("skip    ");
     case "unchanged":
       return pc.dim("unchanged");
+    case "append":
+      return pc.green("append  ");
     default:
       return action;
   }
@@ -504,6 +580,77 @@ export async function runRollback(
           findings.push({
             level: "ok",
             title: `Restored settings: ${s.path}`,
+          });
+        }
+      }
+    }
+  }
+
+  // CLAUDE.md block rollback: surgically remove only leanrig's marked block,
+  // preserving the user's surrounding content. If the markers are gone (user
+  // edited them away), fall back to the full backup under --force.
+  if (manifest.claudeMd) {
+    const c = manifest.claudeMd;
+    if (!fs.existsSync(c.path)) {
+      findings.push({
+        level: c.existedBefore ? "warn" : "ok",
+        title: c.existedBefore
+          ? `CLAUDE.md to restore is missing: ${c.path}`
+          : `Already removed: ${c.path}`,
+      });
+    } else {
+      const current = fs.readFileSync(c.path, "utf8");
+      const startIdx = current.indexOf(c.blockStart);
+      const endIdx = current.indexOf(c.blockEnd);
+      if (startIdx !== -1 && endIdx > startIdx) {
+        // Splice out [blockStart .. blockEnd], collapsing the blank-line
+        // separator we inserted before it.
+        const before = current.slice(0, startIdx).replace(/\n+$/, "");
+        const after = current
+          .slice(endIdx + c.blockEnd.length)
+          .replace(/^\n+/, "");
+        const joined =
+          before.length > 0 && after.length > 0
+            ? `${before}\n\n${after}`
+            : before + after;
+        if (joined.trim().length === 0) {
+          if (!c.existedBefore) {
+            deleteAndPruneDirs(c.path, manifest.configDir);
+            findings.push({
+              level: "ok",
+              title: `Deleted CLAUDE.md (created by leanrig): ${c.path}`,
+            });
+          } else if (c.backupRelPath) {
+            restoreFile(backupDir, c.backupRelPath, c.path);
+            findings.push({ level: "ok", title: `Restored CLAUDE.md: ${c.path}` });
+          }
+        } else {
+          fs.writeFileSync(c.path, joined.replace(/\s*$/, "\n"), "utf8");
+          findings.push({
+            level: "ok",
+            title: `Removed leanrig block from CLAUDE.md: ${c.path}`,
+          });
+        }
+      } else {
+        // Markers not found — user removed/altered them.
+        if (!opts.force) {
+          findings.push({
+            level: "warn",
+            title: `Skipping CLAUDE.md (leanrig block markers not found): ${c.path}`,
+            detail: "Use --force to restore the pre-install backup.",
+          });
+          skippedAny = true;
+        } else if (!c.existedBefore) {
+          deleteAndPruneDirs(c.path, manifest.configDir);
+          findings.push({
+            level: "warn",
+            title: `Deleted CLAUDE.md (--force, markers gone): ${c.path}`,
+          });
+        } else if (c.backupRelPath) {
+          restoreFile(backupDir, c.backupRelPath, c.path);
+          findings.push({
+            level: "warn",
+            title: `Restored CLAUDE.md from backup (--force): ${c.path}`,
           });
         }
       }

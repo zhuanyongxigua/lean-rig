@@ -1,10 +1,14 @@
 /**
  * Claude Code third-party tools registry.
- * All tool ids, licenses, commands copied verbatim from docs/claude-code-facts.md.
+ *
+ * leanrig does NOT install these — it detects whether they are present
+ * (read-only) and surfaces the official install/remove commands as text for
+ * the user (or the leanrig-doctor skill) to run. Ids, licenses, sources and
+ * commands copied verbatim from docs/claude-code-facts.md.
  */
 import fs from "fs";
 import path from "path";
-import type { ToolSpec, ToolStatus, ToolPlan } from "../toolTypes.js";
+import type { ToolSpec, ToolStatus } from "../toolTypes.js";
 import type { CommandRunner } from "../../core/tools.js";
 import { realRunner } from "../../core/tools.js";
 
@@ -19,7 +23,10 @@ export const toolRegistry: ToolSpec[] = [
     description: "Shows model, cost, context, and rate-limit info in the terminal statusline.",
     license: "MIT",
     source: "https://ccusage.com/guide/statusline",
-    kind: "settings",
+    install:
+      'Add to ~/.claude/settings.json:\n' +
+      '  "statusLine": { "type": "command", "command": "npx -y ccusage statusline", "padding": 0 }',
+    remove: "Remove the statusLine key from ~/.claude/settings.json (or restore your previous value).",
     overlaps: "Replaces any current statusLine setting, including leanrig's.",
   },
   {
@@ -28,7 +35,12 @@ export const toolRegistry: ToolSpec[] = [
     description: "Makes Claude talk like a caveman — cuts ~75% of output tokens, keeps technical accuracy.",
     license: "MIT",
     source: "https://github.com/JuliusBrussee/caveman",
-    kind: "external",
+    install:
+      "claude plugin marketplace add JuliusBrussee/caveman\n" +
+      "claude plugin install caveman@caveman",
+    remove:
+      "claude plugin uninstall caveman\n" +
+      "claude plugin marketplace remove caveman",
     overlaps: "Stacks with Token Saver output style; pick one for output compression.",
   },
   {
@@ -37,7 +49,10 @@ export const toolRegistry: ToolSpec[] = [
     description: "Hook-based Bash output compressor with cross-call dedup — up to 95% compression.",
     license: "Apache-2.0",
     source: "https://github.com/claudioemmanuel/squeez",
-    kind: "external",
+    install:
+      "npm install -g squeez\n" +
+      "squeez setup --host=claude-code",
+    remove: "squeez uninstall --host=claude-code",
     overlaps: "Composes with BASH_MAX_OUTPUT_LENGTH; doctor notes redundancy.",
   },
   {
@@ -46,7 +61,10 @@ export const toolRegistry: ToolSpec[] = [
     description: "Local context-intelligence binary — compressed reads, cached re-reads, 60-90% fewer tokens.",
     license: "Apache-2.0",
     source: "https://github.com/yvgude/lean-ctx",
-    kind: "guide",
+    install:
+      "brew tap yvgude/lean-ctx\n" +
+      "brew install lean-ctx",
+    remove: "brew uninstall lean-ctx",
   },
 ];
 
@@ -144,114 +162,6 @@ export async function detectTool(id: string, runner: CommandRunner = realRunner)
       }
       return { installed: false };
     }
-
-    default:
-      throw new Error(`Unknown tool id: "${id}"`);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// planAddTool
-// ---------------------------------------------------------------------------
-
-export function planAddTool(id: string): ToolPlan {
-  const configDir = getConfigDir();
-
-  switch (id) {
-    case "ccusage-statusline":
-      return {
-        kind: "settings",
-        settingsPath: path.join(configDir, "settings.json"),
-        merge: {
-          statusLine: {
-            type: "command",
-            command: "npx -y ccusage statusline",
-            padding: 0,
-          },
-        },
-      };
-
-    case "caveman":
-      return {
-        kind: "external",
-        requires: "claude",
-        commands: [
-          ["claude", "plugin", "marketplace", "add", "JuliusBrussee/caveman"],
-          ["claude", "plugin", "install", "caveman@caveman"],
-        ],
-      };
-
-    case "squeez":
-      return {
-        kind: "external",
-        requires: "npm",
-        commands: [
-          ["npm", "install", "-g", "squeez"],
-          ["squeez", "setup", "--host=claude-code"],
-        ],
-      };
-
-    case "lean-ctx":
-      return {
-        kind: "guide",
-        instructions: [
-          "lean-ctx is a guide-only tool. Install it manually:",
-          "",
-          "  brew tap yvgude/lean-ctx",
-          "  brew install lean-ctx",
-          "",
-          "Source and docs: https://github.com/yvgude/lean-ctx",
-        ].join("\n"),
-      };
-
-    default:
-      throw new Error(`Unknown tool id: "${id}"`);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// planRemoveTool
-// ---------------------------------------------------------------------------
-
-export function planRemoveTool(id: string): ToolPlan {
-  const configDir = getConfigDir();
-
-  switch (id) {
-    case "ccusage-statusline":
-      return {
-        kind: "settings",
-        settingsPath: path.join(configDir, "settings.json"),
-        merge: {
-          statusLine: {
-            type: "command",
-            command: "npx -y ccusage statusline",
-            padding: 0,
-          },
-        },
-      };
-
-    case "caveman":
-      return {
-        kind: "external",
-        requires: "claude",
-        commands: [
-          ["claude", "plugin", "uninstall", "caveman"],
-          ["claude", "plugin", "marketplace", "remove", "caveman"],
-        ],
-      };
-
-    case "squeez":
-      return {
-        kind: "external",
-        requires: "npm",
-        commands: [["squeez", "uninstall", "--host=claude-code"]],
-      };
-
-    case "lean-ctx":
-      return {
-        kind: "guide",
-        instructions: "lean-ctx is not managed by leanrig. Please uninstall it manually.",
-      };
 
     default:
       throw new Error(`Unknown tool id: "${id}"`);

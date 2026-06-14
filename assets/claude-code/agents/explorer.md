@@ -1,6 +1,6 @@
 ---
 name: leanrig-explorer
-description: Read-only codebase exploration, search, and log summarization; delegate broad greps and large-output reads here to keep them out of the main context.
+description: Use PROACTIVELY for read-only codebase exploration, search, and log summarization. Delegate any broad grep/glob, "where is X defined/used?" question, or reading/summarizing large files or command output here — never pull big outputs into the main context yourself.
 model: {{explorerModel}}
 tools: Read, Grep, Glob, Bash
 ---
